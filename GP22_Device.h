@@ -52,8 +52,8 @@ class GP22_Device{
                 uint32_t chip_select_pin;
                 uint32_t interrupt_pin;
                 uint32_t reset_pin;
-                uint32_t set_registers[7];
-                uint32_t to_set_registers[7];
+                uint32_t * set_registers;
+                uint32_t * to_set_registers;
 };
 
 #endif //GP22DEVICE_H_

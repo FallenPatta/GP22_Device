@@ -215,6 +215,11 @@ GP22_Device * measureDevice1;
 
 // the setup function runs once when you press reset or power the board
 void setup() {
+
+  for(int i = 0; i<32; i++){
+    powArray[i] = (double)pow(2,i-16);
+  }
+  
   Serial.begin(115200);
   Serial.println("Start");
   Serial.flush();
@@ -240,42 +245,6 @@ void setup() {
   Serial.flush();
 }
 
-double printAndMeasure(){
-    boolean measure = true;
-    int cnt = 0;
-    uint16_t result = 0;
-    while(measure){
-      writeOpCode(Start_TOF);
-      long timeoutTimer = millis();
-      while (digitalRead(int_pin) == 1 && millis() - timeoutTimer < 3);
-      //Read Result after Timeout (quick) or Hit (slow - processing takes a while -)
-      result = (uint16_t) read32(READ_STAT, 2);
-      if((result >> 9) & 0x1){
-        if(cnt >= MAX_REMEASURE)
-          return 0xFFFFFFFE;
-      } else {
-        measure = false;
-      }
-    }
-    int alu_ptr = result & (uint16_t)0b111;
-    uint32_t msmnt = 0;
-    if(alu_ptr == 1){
-      msmnt=read32(READ_RES_0);
-    }
-    else if(alu_ptr == 2){
-      msmnt = read32(READ_RES_1);
-    }
-    else if(alu_ptr == 3){
-      msmnt = read32(READ_RES_2);
-    }
-    else if(alu_ptr == 4){
-      msmnt = read32(READ_RES_3);
-    }
-    double converted = resultToMicroSeconds(msmnt)*1000;
-//    Serial.println(converted, DEC);
-  return msmnt;
-}
-
 int msmnts = 0;
 int good_msmnts = 0;
 double rate = 15000; //Hz
@@ -285,9 +254,9 @@ long t_start = millis();
 long startTime = 0;
 long stopTime = 0;
 void loop() {
-//    startTime = micros();
-    uint32_t msmnt = measureDevice1->softStartMeasure(5);//rintAndMeasure();
-//    stopTime = micros();
+    uint32_t msmnt = measureDevice1->softStartMeasure(5);//
+    double converted = resultToMicroSeconds(msmnt)*1000;
+    Serial.println(converted, DEC);
     if(msmnt != 0xFFFFFFFE)
       good_msmnts++;
     msmnts ++;
@@ -297,13 +266,6 @@ void loop() {
       Serial.println(msmnts, DEC);
       Serial.print("good measurements/sec: ");
       Serial.print(good_msmnts, DEC);
-//      if(good_msmnts <= msmnts-100 && rate > 0){
-//        rate-=10;
-//        t_delay = (1.0f/rate)*1000000.0f - 39;
-//      } else {
-//        if(rate < 40000) rate+=10;
-//        t_delay = (1.0f/rate)*1000000.0f - 39;
-//      }
       if(good_msmnts < msmnts){
         Serial.println(" !");
       }
@@ -316,6 +278,6 @@ void loop() {
     }
     //delayMicroseconds(max(0,min(t_delay, 100000)));
     //delay(100);
-    delayMicroseconds(55); // 10k hits/sec
+    delayMicroseconds(55); // 10k hits/sec TODO: Messungen mit fester Frequenz über Timer Interrupt
 }
 

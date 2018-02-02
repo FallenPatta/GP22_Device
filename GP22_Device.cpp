@@ -43,6 +43,8 @@ GP22_Device::GP22_Device(){
                 device_state = init_failed;
                 return;
         }
+        to_set_registers = new uint32_t[7];
+        set_registers = new uint32_t[7];
         to_set_registers[0] = CONTENT_REGISTER_0;
         to_set_registers[1] = CONTENT_REGISTER_1;
         to_set_registers[2] = CONTENT_REGISTER_2;
@@ -70,6 +72,14 @@ GP22_Device::GP22_Device(uint32_t spi_speed_, uint32_t chip_select_pin_, uint32_
         pinMode(interrupt_pin, INPUT);
         pinMode(reset_pin, OUTPUT);
         SPI.begin();
+        
+        to_set_registers = new uint32_t[7];
+        set_registers = new uint32_t[7];
+}
+
+GP22_Device::~GP22_Device(){
+        delete [] set_registers;
+        delete [] to_set_registers;
 }
 
 GP22_State GP22_Device::getDeviceState(){
@@ -164,6 +174,28 @@ void GP22_Device::setRegister(uint8_t num, uint32_t val){
 }
 
 void GP22_Device::write32(uint8_t address, uint32_t content, int n) {
+  if (n < 1 | n > 4) {
+    return;
+  }
+  byte b0 = (byte)((content >> 24) & 0xFF);
+  byte b1 = (byte)((content >> 16) & 0xFF);
+  byte b2 = (byte)((content >> 8) & 0xFF);
+  byte b3 = (byte)((content) & 0xFF);
+
+  AtomicBlock< Atomic_RestoreState, _Safe >     a_Block;
+  digitalWrite(chip_select_pin, LOW);
+  SPI.beginTransaction(SPISettings(spi_speed, MSBFIRST, SPI_MODE1));
+  SPI.transfer(address, SPI_CONTINUE);
+  SPI.transfer(b0, SPI_CONTINUE);
+  if (n > 1) SPI.transfer(b1, SPI_CONTINUE);
+  if (n > 2) SPI.transfer(b2, SPI_CONTINUE);
+  if (n > 3) SPI.transfer(b3);
+  SPI.endTransaction();
+  digitalWrite(chip_select_pin, HIGH);
+
+}
+
+void GP22_Device::writeN(uint8_t address, uint32_t content, int n) {
   if (n < 1 | n > 4) {
     return;
   }
@@ -481,4 +513,137 @@ uint32_t GP22_Device::softStartMeasure(int retrys){
 //  Serial.println(resultToMicroSeconds(result1)*1000);
 //  Serial.println(resultToMicroSeconds(result2)*1000);
 //  Serial.println(resultToMicroSeconds(result3)*1000);
+
+void write32(uint8_t address, uint32_t content, int n = 4) {
+  if (n < 1 | n > 4) {
+    return;
+  }
+  byte b0 = (byte)((content >> 24) & 0xFF);
+  byte b1 = (byte)((content >> 16) & 0xFF);
+  byte b2 = (byte)((content >> 8) & 0xFF);
+  byte b3 = (byte)((content) & 0xFF);
+
+//  for (int i = 31; i >= 0; i--) {
+//    if ((content >> i) & 0x1) Serial.print("1");
+//    else Serial.print("0");
+//  }
+//  Serial.println("");
+
+  AtomicBlock< Atomic_RestoreState, _Safe >     a_Block;
+  //Serial.flush();
+  digitalWrite(ssn_pin, LOW);
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE1));
+  SPI.transfer(address, SPI_CONTINUE);
+  SPI.transfer(b0, SPI_CONTINUE);
+  if (n > 1) SPI.transfer(b1, SPI_CONTINUE);
+  if (n > 2) SPI.transfer(b2, SPI_CONTINUE);
+  if (n > 3) SPI.transfer(b3);
+  SPI.endTransaction();
+  digitalWrite(ssn_pin, HIGH);
+
+}
+
+void write8(uint8_t address, uint8_t content) {
+  AtomicBlock< Atomic_RestoreState, _Safe >     a_Block;
+  //Serial.flush();
+  digitalWrite(ssn_pin, LOW);
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE1));
+  SPI.transfer(address, SPI_CONTINUE);
+  SPI.transfer(content, SPI_CONTINUE);
+  SPI.endTransaction();
+  digitalWrite(ssn_pin, HIGH);
+
+}
+
+void writeOpCode(uint8_t code) {
+  AtomicBlock< Atomic_RestoreState, _Safe >     a_Block;
+  //Serial.flush();
+  digitalWrite(ssn_pin, LOW);
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE1));
+  SPI.transfer(code);
+  SPI.endTransaction();
+  digitalWrite(ssn_pin, HIGH);
+
+}
+
+
+uint32_t read32(uint8_t address, int n = 4) {
+  if (n < 1 | n > 4) {
+    return 0;
+  }
+  AtomicBlock< Atomic_RestoreState, _Safe >     a_Block;
+  //Serial.flush();
+  uint32_t result = 0;
+  digitalWrite(ssn_pin, LOW);
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE1));
+  SPI.transfer(address, SPI_CONTINUE);
+  result = SPI.transfer(0, SPI_CONTINUE);
+  if (n > 1) {
+    result <<= 8;
+    result |= SPI.transfer(0, SPI_CONTINUE);
+  }
+  if (n > 2) {
+    result <<= 8;
+    result |= SPI.transfer(0, SPI_CONTINUE);
+  }
+  if (n > 3) {
+    result <<= 8;
+    result |= SPI.transfer(0);
+  }
+  SPI.endTransaction();
+  digitalWrite(ssn_pin, HIGH);
+
+  return result;
+}
+
+uint8_t read8(uint8_t address) {
+  AtomicBlock< Atomic_RestoreState, _Safe >     a_Block;
+  //Serial.flush();
+  uint8_t result = 0;
+  digitalWrite(ssn_pin, LOW);
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE1));
+  SPI.transfer(address, SPI_CONTINUE);
+  result = SPI.transfer(0, SPI_CONTINUE);
+  SPI.endTransaction();
+  digitalWrite(ssn_pin, HIGH);
+
+  return result;
+}
+
+uint64_t readID() {
+  AtomicBlock< Atomic_RestoreState, _Safe >     a_Block;
+  //Serial.flush();
+  uint64_t id = 0;
+  digitalWrite(ssn_pin, LOW);
+  SPI.beginTransaction(SPISettings(SPI_SPEED, MSBFIRST, SPI_MODE1));
+  SPI.transfer(READ_ID, SPI_CONTINUE);
+  id = SPI.transfer(0, SPI_CONTINUE);
+  id <<= 8;
+  id = SPI.transfer(0, SPI_CONTINUE);
+  id <<= 8;
+  id = SPI.transfer(0, SPI_CONTINUE);
+  id <<= 8;
+  id = SPI.transfer(0, SPI_CONTINUE);
+  id <<= 8;
+  id = SPI.transfer(0, SPI_CONTINUE);
+  id <<= 8;
+  id = SPI.transfer(0, SPI_CONTINUE);
+  id <<= 8;
+  id = SPI.transfer(0);
+  SPI.endTransaction();
+  digitalWrite(ssn_pin, HIGH);
+
+  return id;
+}
+
+void printValue(uint32_t val) {
+  for (int i = 31; i >= 0; i--) {
+    if ((val >> i) & 1) {
+      Serial.print("1");
+    }
+    else {
+      Serial.print("0");
+    }
+  }
+}
 */
